@@ -1,5 +1,6 @@
 from flask import Flask, request, abort
 import os
+import re
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -11,7 +12,6 @@ from linebot.v3.messaging import (
     TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-
 
 app = Flask(__name__)
 
@@ -29,43 +29,41 @@ def calculate_juggler(data_text):
         if line.strip()
     ]
 
+    # 3台未満なら無視
+    if len(lines) < 3:
+        return None
+
+    pattern = re.compile(r"^\d+\.\d+\.\d+$")
+
     total_games = 0
     total_bb = 0
     total_rb = 0
-    machine_count = 0
 
+    # 1行でも形式がおかしかったら無視
     for line in lines:
-        try:
-            parts = line.split(".")
+        if not pattern.match(line):
+            return None
 
-            if len(parts) >= 3:
-                games = int(parts[0])
-                bb = int(parts[1])
-                rb = int(parts[2])
+        games, bb, rb = map(int, line.split("."))
 
-                total_games += games
-                total_bb += bb
-                total_rb += rb
-                machine_count += 1
+        total_games += games
+        total_bb += bb
+        total_rb += rb
 
-        except:
-            continue
+    if total_bb == 0 or total_rb == 0:
+        return None
 
-    if total_games == 0:
-        return "データ形式が違います。\n例：\n3120.11.15\n4311.12.19"
-
-    bb_prob = round(total_games / total_bb) if total_bb > 0 else 999
-    rb_prob = round(total_games / total_rb) if total_rb > 0 else 999
-
+    bb_prob = round(total_games / total_bb)
+    rb_prob = round(total_games / total_rb)
     total_bonus = total_bb + total_rb
-    total_prob = round(total_games / total_bonus) if total_bonus > 0 else 999
+    total_prob = round(total_games / total_bonus)
 
     result = f"""
-{machine_count}台
+{len(lines)}台
 {total_games:,}G
-BB1/{bb_prob}
-RB1/{rb_prob}
-合算1/{total_prob}
+BB 1/{bb_prob}
+RB 1/{rb_prob}
+合算 1/{total_prob}
 """
 
     return result.strip()
@@ -75,6 +73,8 @@ RB1/{rb_prob}
 def callback():
     signature = request.headers.get("X-Line-Signature")
     body = request.get_data(as_text=True)
+
+    print("Webhook received!")
 
     try:
         handler.handle(body, signature)
@@ -89,10 +89,11 @@ def callback():
 def handle_message(event):
     text = event.message.text.strip()
 
-    if "." in text:
-        result = calculate_juggler(text)
-    else:
-        result = "ジャグラーの台データを送信してください！\n（games.bb.rb の形式）"
+    result = calculate_juggler(text)
+
+    # 条件に合わない場合は完全に無視
+    if result is None:
+        return
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
