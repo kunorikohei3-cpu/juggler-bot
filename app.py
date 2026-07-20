@@ -29,22 +29,36 @@ def calculate_juggler(data_text):
         if line.strip()
     ]
 
-    # 3台未満なら無視
-    if len(lines) < 3:
+    if not lines:
         return None
 
-    pattern = re.compile(r"^\d+\.\d+\.\d+$")
+    # 1行目だけ機種名として許可
+    start = 0
+    if not re.match(r"^\d+\.\d+\.\d+", lines[0]):
+        start = 1
+
+    data_lines = lines[start:]
+
+    # 3台未満なら無視
+    if len(data_lines) < 3:
+        return None
 
     total_games = 0
     total_bb = 0
     total_rb = 0
 
-    # 1行でも形式がおかしかったら無視
-    for line in lines:
-        if not pattern.match(line):
+    for line in data_lines:
+
+        # 行頭の「数字.数字.数字」だけ取得
+        m = re.match(r"^(\d+)\.(\d+)\.(\d+)", line)
+
+        # 数字で始まらない行があれば無視
+        if not m:
             return None
 
-        games, bb, rb = map(int, line.split("."))
+        games = int(m.group(1))
+        bb = int(m.group(2))
+        rb = int(m.group(3))
 
         total_games += games
         total_bb += bb
@@ -59,7 +73,7 @@ def calculate_juggler(data_text):
     total_prob = round(total_games / total_bonus)
 
     result = f"""
-{len(lines)}台
+{len(data_lines)}台
 {total_games:,}G
 BB 1/{bb_prob}
 RB 1/{rb_prob}
@@ -67,6 +81,11 @@ RB 1/{rb_prob}
 """
 
     return result.strip()
+
+
+@app.route("/")
+def health():
+    return "OK"
 
 
 @app.route("/callback", methods=["POST"])
