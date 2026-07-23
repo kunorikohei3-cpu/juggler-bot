@@ -64,20 +64,22 @@ def calculate_juggler(data_text):
         total_bb += bb
         total_rb += rb
 
-    if total_bb == 0 or total_rb == 0:
-        return None
+    # BB・RBが0でもエラーにならないようにする
+    bb_prob = f"1/{round(total_games / total_bb)}" if total_bb > 0 else "---"
+    rb_prob = f"1/{round(total_games / total_rb)}" if total_rb > 0 else "---"
 
-    bb_prob = round(total_games / total_bb)
-    rb_prob = round(total_games / total_rb)
     total_bonus = total_bb + total_rb
-    total_prob = round(total_games / total_bonus)
+    total_prob = (
+        f"1/{round(total_games / total_bonus)}"
+        if total_bonus > 0 else "---"
+    )
 
     result = f"""
 {len(data_lines)}台
 {total_games:,}G
-BB 1/{bb_prob}
-RB 1/{rb_prob}
-合算 1/{total_prob}
+BB {bb_prob}
+RB {rb_prob}
+合算 {total_prob}
 """
 
     return result.strip()
